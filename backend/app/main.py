@@ -1,3 +1,11 @@
+import sys
+from pathlib import Path
+
+# Ensure backend directory is in sys.path so 'app' imports work from any cwd
+_backend_dir = Path(__file__).resolve().parent.parent
+if str(_backend_dir) not in sys.path:
+    sys.path.insert(0, str(_backend_dir))
+
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -17,18 +25,25 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "https://nagar-setu-rust.vercel.app",
-        "https://nagar-setu-git-backend-fastapi-team-448.vercel.app",
-    ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.options("/{full_path:path}")
+async def options_preflight_handler(full_path: str):
+    """Explicit preflight handler to guarantee CORS headers on OPTIONS requests."""
+    return JSONResponse(
+        status_code=200,
+        content="OK",
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        },
+    )
 
 
 @app.exception_handler(RequestValidationError)
@@ -38,6 +53,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content=jsonable_encoder(
             {"detail": exc.errors(), "message": "Validation error"}
         ),
+        headers={"Access-Control-Allow-Origin": "*"},
     )
 
 
@@ -49,6 +65,7 @@ async def db_exception_handler(request: Request, exc: SQLAlchemyError):
             "message": "Database error occurred. Please check connection.",
             "detail": str(exc),
         },
+        headers={"Access-Control-Allow-Origin": "*"},
     )
 
 
